@@ -1,107 +1,109 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, MeshDistortMaterial } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Float, MeshDistortMaterial, Sphere, PerspectiveCamera } from "@react-three/drei";
 import { useRef, useMemo } from "react";
 import * as THREE from "three";
 
-function RotatingGeometry() {
+function WavingRibbon({ position, color, speed, distort, scale }: { position: [number, number, number], color: string, speed: number, distort: number, scale: [number, number, number] }) {
   const meshRef = useRef<THREE.Mesh>(null);
-
+  const { mouse } = useThree();
+  
   useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.x = state.clock.elapsedTime * 0.15;
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.2;
+      const t = state.clock.elapsedTime;
+      meshRef.current.rotation.x = Math.sin(t * 0.2 * speed) * 0.1;
+      meshRef.current.rotation.y = t * 0.05 * speed;
+      
+      const targetX = position[0] + mouse.x * 2;
+      const targetY = position[1] + mouse.y * 2;
+      meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, 0.05);
+      meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, targetY, 0.05);
     }
   });
 
   return (
-    <Float speed={1.5} rotationIntensity={0.3} floatIntensity={1.5}>
-      <mesh ref={meshRef} scale={2.2}>
-        <icosahedronGeometry args={[1, 1]} />
-        <MeshDistortMaterial
-          color="#22d3ee"
-          emissive="#06b6d4"
-          emissiveIntensity={1.5}
-          roughness={0.1}
-          metalness={1}
-          wireframe
-          distort={0.4}
-          speed={3}
-        />
-      </mesh>
-    </Float>
+    <mesh ref={meshRef} position={position} scale={scale}>
+      <planeGeometry args={[1, 1, 32, 32]} />
+      <MeshDistortMaterial
+        color={color}
+        speed={speed}
+        distort={distort}
+        radius={1}
+        emissive={color}
+        emissiveIntensity={0.2}
+        transparent
+        opacity={0.4}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 
-function Particles() {
-  const count = 1000;
-  const positions = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 30;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 30;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 30;
-    }
-    return pos;
+function FloatingPetals() {
+  const count = 30;
+  const petals = useMemo(() => {
+    return Array.from({ length: count }, () => ({
+      position: [(Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 10] as [number, number, number],
+      rotation: [Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI] as [number, number, number],
+      scale: 0.15 + Math.random() * 0.2,
+      speed: 0.3 + Math.random() * 0.5,
+    }));
   }, []);
 
-  const ref = useRef<THREE.Points>(null);
-
-  useFrame((state) => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.elapsedTime * 0.04;
-      ref.current.rotation.x = state.clock.elapsedTime * 0.02;
-    }
-  });
-
   return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-          count={count}
-        />
-      </bufferGeometry>
-      <pointsMaterial size={0.05} color="#22d3ee" transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} />
-    </points>
+    <group>
+      {petals.map((petal, i) => (
+        <Petal key={i} {...petal} />
+      ))}
+    </group>
   );
 }
 
-function FloatingRing() {
+function Petal({ position, rotation, scale, speed }: any) {
   const ref = useRef<THREE.Mesh>(null);
-
+  const initialY = position[1];
+  
   useFrame((state) => {
     if (ref.current) {
-      ref.current.rotation.x = Math.PI / 2 + Math.sin(state.clock.elapsedTime * 0.4) * 0.3;
-      ref.current.rotation.z = state.clock.elapsedTime * 0.2;
+      const t = state.clock.elapsedTime * speed;
+      ref.current.position.y -= 0.015 * speed;
+      ref.current.position.x += Math.sin(t) * 0.01;
+      ref.current.rotation.x += 0.01;
+      ref.current.rotation.z += 0.01;
+      
+      if (ref.current.position.y < -12) ref.current.position.y = 12;
     }
   });
 
   return (
-    <>
-      <mesh ref={ref} scale={4}>
-        <torusGeometry args={[1, 0.015, 16, 100]} />
-        <meshStandardMaterial color="#a78bfa" emissive="#7c3aed" emissiveIntensity={1} transparent opacity={0.8} />
-      </mesh>
-      <mesh ref={ref} scale={4.05}>
-        <torusGeometry args={[1, 0.005, 16, 100]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.3} />
-      </mesh>
-    </>
+    <mesh ref={ref} position={position} rotation={rotation} scale={scale}>
+      <planeGeometry args={[1, 0.8]} />
+      <meshBasicMaterial color="#fca5a5" transparent opacity={0.5} side={THREE.DoubleSide} />
+    </mesh>
   );
 }
 
 export default function Scene3D() {
   return (
-    <div className="fixed inset-0 -z-10">
-      <Canvas camera={{ position: [0, 0, 7], fov: 60 }}>
-        <fog attach="fog" args={["#0a0a1a", 5, 20]} />
-        <ambientLight intensity={0.8} />
-        <pointLight position={[10, 10, 10]} intensity={4} color="#06b6d4" />
-        <pointLight position={[-10, -10, 5]} intensity={3} color="#8b5cf6" />
-        <pointLight position={[0, 5, -5]} intensity={2} color="#3b82f6" />
-        <Particles />
-        <FloatingRing />
+    <div className="w-full h-full">
+      <Canvas alpha shadows>
+        <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={50} />
+        <color attach="background" args={["#fff7ed"]} />
+        
+        <ambientLight intensity={1.5} />
+        <pointLight position={[10, 10, 10]} intensity={2} color="#fbbf24" />
+        <pointLight position={[-10, -10, 10]} intensity={1} color="#f97316" />
+        
+        <WavingRibbon position={[-5, 3, -2]} color="#fde68a" speed={0.5} distort={0.3} scale={[15, 15, 1]} />
+        <WavingRibbon position={[6, -4, -4]} color="#fb923c" speed={0.4} distort={0.4} scale={[18, 18, 1]} />
+        <WavingRibbon position={[0, 0, -8]} color="#fef3c7" speed={0.3} distort={0.2} scale={[40, 30, 1]} />
+        
+        <FloatingPetals />
+        
+        <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
+          <Sphere position={[4, 4, -2]} scale={2}>
+            <meshBasicMaterial color="#ffedd5" transparent opacity={0.3} />
+          </Sphere>
+        </Float>
       </Canvas>
     </div>
   );
