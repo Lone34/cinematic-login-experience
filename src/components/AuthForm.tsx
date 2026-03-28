@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, ArrowRight, Sparkles, User, Mail, Lock } from "lucide-react";
 
@@ -6,6 +6,60 @@ export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
+  
+  // Form values
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  
+  // Dodging button state
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [buttonPos, setButtonPos] = useState({ x: 0, y: 0 });
+  const [lastMoveTime, setLastMoveTime] = useState(0);
+
+  const isFormValid = isLogin 
+    ? email.trim().length > 0 && password.trim().length > 0 
+    : name.trim().length > 0 && email.trim().length > 0 && password.trim().length > 0;
+
+  const handleDodging = useCallback(() => {
+    const now = Date.now();
+    if (!isFormValid && now - lastMoveTime > 200) { // Cooldown to prevent crazy flickering
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      const randomX = (Math.random() - 0.5) * screenWidth * 0.7;
+      const randomY = (Math.random() - 0.5) * screenHeight * 0.7;
+      
+      setButtonPos({ x: randomX, y: randomY });
+      setLastMoveTime(now);
+    }
+  }, [isFormValid, lastMoveTime]);
+
+  // Proximity detection
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isFormValid && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        const distance = Math.sqrt(
+          Math.pow(e.clientX - centerX, 2) + Math.pow(e.clientY - centerY, 2)
+        );
+
+        if (distance < 120) { // Dodge when cursor is within 120px
+          handleDodging();
+        }
+      }
+    };
+
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
+  }, [handleDodging, isFormValid]);
+
+  const resetPosition = () => {
+    setButtonPos({ x: 0, y: 0 });
+  };
 
   const formVariants = {
     hidden: { opacity: 0, x: isLogin ? -30 : 30, filter: "blur(10px)" },
@@ -34,9 +88,9 @@ export default function AuthForm() {
       {/* Ambient glow */}
       <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 blur-xl animate-pulse-glow" />
 
-      <div className="relative glass glow-border rounded-2xl p-8 overflow-hidden">
+      <div className="relative glass glow-border rounded-2xl p-8">
         {/* Scan line effect */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
           <div className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent animate-scan-line" />
         </div>
 
@@ -71,7 +125,10 @@ export default function AuthForm() {
             <button
               key={tab}
               data-hover
-              onClick={() => setIsLogin(i === 0)}
+              onClick={() => {
+                setIsLogin(i === 0);
+                resetPosition();
+              }}
               className={`relative z-10 flex-1 py-2 text-sm font-medium transition-colors duration-300 rounded-lg ${
                 (i === 0 ? isLogin : !isLogin) ? "text-primary" : "text-muted-foreground"
               }`}
@@ -99,6 +156,11 @@ export default function AuthForm() {
                   placeholder="Full Name"
                   type="text"
                   name="name"
+                  value={name}
+                  onChange={(val) => {
+                    setName(val);
+                    resetPosition();
+                  }}
                   focused={focused}
                   onFocus={setFocused}
                 />
@@ -111,6 +173,11 @@ export default function AuthForm() {
                 placeholder="Email Address"
                 type="email"
                 name="email"
+                value={email}
+                onChange={(val) => {
+                  setEmail(val);
+                  resetPosition();
+                }}
                 focused={focused}
                 onFocus={setFocused}
               />
@@ -123,6 +190,11 @@ export default function AuthForm() {
                   placeholder="Password"
                   type={showPassword ? "text" : "password"}
                   name="password"
+                  value={password}
+                  onChange={(val) => {
+                    setPassword(val);
+                    resetPosition();
+                  }}
                   focused={focused}
                   onFocus={setFocused}
                 />
@@ -147,11 +219,27 @@ export default function AuthForm() {
 
             <motion.div variants={itemVariants}>
               <motion.button
+                ref={buttonRef}
                 data-hover
                 type="submit"
-                className="group relative w-full py-3 rounded-xl font-medium text-primary-foreground overflow-hidden"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                animate={isFormValid ? { x: 0, y: 0, scale: 1 } : { x: buttonPos.x, y: buttonPos.y }}
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 400, 
+                  damping: 15,
+                  mass: 0.8
+                }}
+                onMouseEnter={handleDodging}
+                onFocus={handleDodging}
+                onClick={(e) => {
+                  if (!isFormValid) {
+                    e.preventDefault();
+                    handleDodging();
+                  }
+                }}
+                className="group relative w-full py-3 rounded-xl font-medium text-primary-foreground overflow-hidden shadow-lg shadow-primary/20"
+                whileHover={isFormValid ? { scale: 1.02, y: -2 } : {}}
+                whileTap={isFormValid ? { scale: 0.98 } : {}}
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-accent transition-all duration-500 group-hover:opacity-90" />
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-accent via-primary to-primary" />
@@ -201,6 +289,8 @@ function InputField({
   placeholder,
   type,
   name,
+  value,
+  onChange,
   focused,
   onFocus,
 }: {
@@ -208,6 +298,8 @@ function InputField({
   placeholder: string;
   type: string;
   name: string;
+  value: string;
+  onChange: (val: string) => void;
   focused: string | null;
   onFocus: (name: string | null) => void;
 }) {
@@ -226,6 +318,9 @@ function InputField({
       </span>
       <input
         type={type}
+        name={name}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         onFocus={() => onFocus(name)}
         onBlur={() => onFocus(null)}
