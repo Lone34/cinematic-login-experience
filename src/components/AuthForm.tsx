@@ -25,10 +25,11 @@ export default function AuthForm() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, scale: 0.85, y: 60, rotateX: 8, filter: "blur(12px)" }}
+      animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0, filter: "blur(0px)" }}
+      transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
       className="relative w-full max-w-md mx-auto"
+      style={{ perspective: 1000 }}
     >
       {/* Ambient glow */}
       <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 blur-xl animate-pulse-glow" />
